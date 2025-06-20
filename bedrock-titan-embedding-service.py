@@ -1,23 +1,61 @@
 import boto3
 import json
 import os
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load AWS credentials from .env
 load_dotenv()
 
-app = FastAPI()
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
-# Request model
+app = FastAPI(
+    title="Titan Embedding Service",
+    description="Simple FastAPI service that wraps Amazon Bedrock Titan Embedding v2 model.",
+    version="1.0.0"
+)
+
 class EmbedRequest(BaseModel):
-    text: str
-    dimensions: int = 1024
-    normalize: bool = True
-    model_id: str = "amazon.titan-embed-text-v2:0"
-    region: str = "eu-north-1"
+    text: str = Field(..., description="The input text to embed")
+    dimensions: int = Field(1024, description="Number of embedding dimensions", example=1024)
+    normalize: bool = Field(True, description="Whether to normalize the embedding vector")
+    model_id: str = Field("amazon.titan-embed-text-v2:0", description="Bedrock model ID")
+    region: str = Field("eu-north-1", description="AWS region where Bedrock is deployed")
+
+class EmbedResponse(BaseModel):
+    embedding: list = Field(..., description="The resulting embedding vector")
+
+@app.post("/embed", response_model=EmbedResponse)
+def generate_embedding(request: EmbedRequest):
+    try:
+        client = boto3.client(
+            service_name="bedrock-runtime",
+            region_name=request.region,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+        )
+
+        payload = {
+            "inputText": request.text,
+            "dimensions": request.dimensions,
+            "normalize": request.normalize
+        }
+
+        response = client.invoke_model(
+            modelId=request.model_id,
+            body=json.dumps(payload)
+        )
+
+        body = response['body'].read().decode()
+        result = json.loads(body)
+
+        # Always return the simplified embedding field
+        return EmbedResponse(embedding=result.get("embedding"))
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 def health():
@@ -26,55 +64,13 @@ def health():
 @app.get("/help")
 def help():
     return {
-        "description": "This service generates embeddings using Amazon Titan Embedding v2.",
-        "input_format": {
-            "text": "The text string to embed.",
-            "dimensions": "(Optional) Integer. Embedding dimensions. Default: 1024.",
-            "normalize": "(Optional) Boolean. Normalize output. Default: True.",
-            "model_id": "(Optional) The full model ID (default: amazon.titan-embed-text-v2:0).",
-            "region": "(Optional) AWS region (default: eu-north-1)."
-        },
-        "output_format": {
-            "embedding": "List of float values representing the embedding."
+        "title": "Titan Embedding Service",
+        "description": "POST /embed with text, dimensions, normalize, model_id, region to get embedding.",
+        "example_request": {
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "dimensions": 1024,
+            "normalize": True,
+            "model_id": "amazon.titan-embed-text-v2:0",
+            "region": "eu-north-1"
         }
     }
-
-@app.post("/embed")
-async def embed(request: Request):
-    try:
-        data = await request.json()
-        input_data = EmbedRequest(**data)
-
-        # Load AWS credentials from environment variables
-        AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-        AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-
-        if not AWS_ACCESS_KEY or not AWS_SECRET_KEY:
-            raise HTTPException(status_code=500, detail="AWS credentials not set in environment variables.")
-
-        # Create Bedrock client dynamically based on input region
-        bedrock_client = boto3.client(
-            "bedrock-runtime",
-            region_name=input_data.region,
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY
-        )
-
-        payload = {
-            "inputText": input_data.text,
-            "dimensions": input_data.dimensions,
-            "normalize": input_data.normalize
-        }
-
-        response = bedrock_client.invoke_model(
-            modelId=input_data.model_id,
-            body=json.dumps(payload)
-        )
-
-        result = json.loads(response['body'].read().decode())
-        return JSONResponse(content=result)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# To run: uvicorn filename:app --reload
