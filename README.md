@@ -8,18 +8,20 @@ A simple FastAPI-based microservice that wraps Amazon Bedrock Titan Embedding v2
 * Dynamically configurable model ID and AWS region
 * Uses environment variables to securely load AWS credentials
 * Includes `/health` and `/help` endpoints
+* Dockerized for easy deployment
 
 ---
 
 ## Requirements
 
-* Python 3.9+
+* Python 3.9+ (if running locally)
+* Docker (if running containerized)
 * AWS account with Bedrock access and permissions to invoke Titan Embedding v2
 * AWS credentials with Bedrock permissions
 
 ---
 
-## Installation
+## Installation (local, without Docker)
 
 1. Clone the repository and navigate into the project directory.
 
@@ -37,7 +39,7 @@ source .venv/bin/activate  # (Linux/Mac)
 pip install -r requirements.txt
 ```
 
-*Example `requirements.txt`:*
+**Your `requirements.txt`:**
 
 ```
 fastapi
@@ -58,7 +60,7 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 
 ---
 
-## Running the service
+## Running the service (local)
 
 Start the server with:
 
@@ -72,6 +74,41 @@ Example:
 
 ```bash
 uvicorn bedrock_embed_service:app --reload
+```
+
+---
+
+## Running the service with Docker
+
+### 1. Build the Docker image
+
+```bash
+docker build -t titan-embedding-service .
+```
+
+### 2. Run the Docker container
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  --env-file .env \
+  titan-embedding-service
+```
+
+The `.env` file will provide the AWS credentials inside the container.
+
+### 3. Test it
+
+You can test it as before:
+
+```bash
+curl -X POST http://127.0.0.1:8000/embed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "The quick brown fox jumps over the lazy dog.",
+    "dimensions": 1024,
+    "normalize": true
+  }'
 ```
 
 ---
@@ -115,20 +152,6 @@ Simple health check. Returns:
 ### `GET /help`
 
 Returns full API usage documentation.
-
----
-
-## Example Usage
-
-```bash
-curl -X POST http://127.0.0.1:8000/embed \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "The quick brown fox jumps over the lazy dog.",
-    "dimensions": 1024,
-    "normalize": true
-  }'
-```
 
 ---
 
