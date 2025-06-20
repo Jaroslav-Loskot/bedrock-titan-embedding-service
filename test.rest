@@ -1,0 +1,10 @@
+POST http://localhost:8000/embed
+Content-Type: application/json
+
+{
+  "text": "The quick brown fox jumps over the lazy dog.",
+  "dimensions": 1024,
+  "normalize": true,
+  "model_id": "amazon.titan-embed-text-v2:0",
+  "region": "eu-north-1"
+}
