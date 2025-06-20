@@ -21,4 +21,4 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Run the FastAPI app with uvicorn
-CMD ["uvicorn", "bedrock_embed_service:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "bedrock-titan-embedding-service:app", "--host", "0.0.0.0", "--port", "8000"]
